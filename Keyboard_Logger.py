@@ -1,13 +1,12 @@
 import pygame
 import pygame.midi
-import pprint
 import time
 import csv
 import sys
-import random
 from PIL import Image
 from PIL import ImageDraw
 
+#For polling MIDI
 pygame.init()
 pygame.fastevent.init()
 pygame.midi.init()
@@ -15,13 +14,11 @@ input_id = pygame.midi.get_default_input_id()
 
 keystrokes = []
 freq_hist = [0]*120
-time_thresh = 5
+time_thresh = 5 #Number of minutes per saving of information
      
-
 def draw_diagram(freq_hist):
 
-
-        im = Image.new('RGB',(5200,400))
+        im = Image.new('RGB',(5200,400)) #Todo: make images scalable so 5200x400 isn't the only size
         draw = ImageDraw.Draw(im,"RGBA")
 
         #Draw white keys in
@@ -32,7 +29,7 @@ def draw_diagram(freq_hist):
         height = 400
         skips = []
         for i in range(0,num_keys):
-                if i not in skips:
+                if i not in skips: #this isn't necessary but kept in so white/black key drawing is similar
                         hits = 0
                         f = open(csv_name, 'rt')
                         reader = csv.DictReader(f)
@@ -43,7 +40,7 @@ def draw_diagram(freq_hist):
                         draw.polygon([((100*i)+offset,0), ((100*i)+offset, height), ((100*i)+offset+width, height), ((100*i)+offset+width,0)], fill=(color, color, color, 255), outline=(128,128,128,255))
 
 
-        #Create skips for black keys
+        #Create skips for black keys (a skip counts when there are two white keys without a black key between)
         for w in range(0,7):
                 skips.append(1+7*w)
                 skips.append(4+7*w)
@@ -68,29 +65,28 @@ def draw_diagram(freq_hist):
       
         del draw
         im.save("keyboardheatmap.png","PNG")
-        print("imagesaved")
+        print("imsaved")
 
-curr_time = time.time()
+save_time = time.time()
+old_time = save_time
 i = pygame.midi.Input( input_id )
 while True:
-        if i.poll():
+        if i.poll(): #Begin polling
                 midi_events = i.read(1)
                 if midi_events[0][0][0] != 248 and midi_events[0][0][2] != 0:
-                        old_time = curr_time
-                        curr_time = time.time()
-                        if len(keystrokes) % 20 == 0 and len(keystrokes) > 19:
-#                        if curr_time - old_time > 60*time_thresh:
-                                print("been a while huh")
-                                with open('eggs.csv', 'wb') as csvfile:
-                                    spamwriter = csv.writer(csvfile, delimiter=',',
+                        save_time = time.time()
+#                        if len(keystrokes) % 20 == 0 and len(keystrokes) > 19: #test mode -- makes csv and heatmaps very regularly
+                        if save_time - old_time > 60*time_thresh:
+                                old_time = save_time
+                                with open(str(time.strftime("%a%d%b%Y"))+'.csv', 'wb') as csvfile:
+                                    csvrow = csv.writer(csvfile, delimiter=',',
                                                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                                    csvrow.writerow(['ID','Key_ID','Velocity','Time_Played'])
                                     for k in keystrokes:
-                                            spamwriter.writerow(k)
+                                            csvrow.writerow(k)
                                             freq_hist[k[1]] += 1
                                 draw_diagram(freq_hist)
                                             
-                        midi_events[0][0][3] = curr_time
+                        midi_events[0][0][3] = save_time
                         keystrokes.append(midi_events[0][0])
                         print(midi_events[0][0])
-
-                        
